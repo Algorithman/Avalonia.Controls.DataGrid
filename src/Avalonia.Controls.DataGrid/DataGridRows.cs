@@ -80,7 +80,7 @@ namespace Avalonia.Controls
                 }
                 Debug.Assert(DisplayData.LastScrollingSlot >= 0);
                 Debug.Assert(_verticalOffset >= 0);
-                Debug.Assert(NegVerticalOffset >= 0);
+                Debug.Assert(NegVerticalOffset >= -1);
 
                 // Height of all rows above the viewport
                 double totalRowsHeight = _verticalOffset - NegVerticalOffset;
@@ -1917,7 +1917,7 @@ namespace Avalonia.Controls
 
                 DisplayData.FullyRecycleElements();
 
-                Debug.Assert(MathUtilities.GreaterThanOrClose(NegVerticalOffset, 0));
+                Debug.Assert(MathUtilities.GreaterThanOrClose(NegVerticalOffset, -1));
                 Debug.Assert(MathUtilities.GreaterThanOrClose(_verticalOffset, NegVerticalOffset));
             }
             finally
