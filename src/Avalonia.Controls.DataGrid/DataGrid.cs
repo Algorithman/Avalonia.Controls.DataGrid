@@ -397,6 +397,29 @@ namespace Avalonia.Controls
             set { SetValue(AreRowGroupHeadersFrozenProperty, value); }
         }
 
+        public static readonly StyledProperty<Color> MultiSortColorStartProperty =
+            AvaloniaProperty.Register<DataGrid, Color>(nameof(MultiSortColorStart), Colors.Transparent);
+
+        /// <summary>
+        /// Gets or sets the first color used for the sorting visualization
+        /// </summary>
+        public Color MultiSortColorStart
+        {
+            get => GetValue(MultiSortColorStartProperty);
+            set => SetValue(MultiSortColorStartProperty, value);
+        }
+        public static readonly StyledProperty<Color> MultiSortColorEndProperty =
+            AvaloniaProperty.Register<DataGrid, Color>(nameof(MultiSortColorEnd), Colors.Transparent);
+
+        /// <summary>
+        /// Gets or sets the second color used for the sorting visualization
+        /// </summary>
+        public Color MultiSortColorEnd
+        {
+            get => GetValue(MultiSortColorEndProperty);
+            set => SetValue(MultiSortColorEndProperty, value);
+        }
+
         private void OnAreRowGroupHeadersFrozenChanged(AvaloniaPropertyChangedEventArgs e)
         {
             var value = (bool)e.NewValue;
