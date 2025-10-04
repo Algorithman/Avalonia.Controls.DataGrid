@@ -322,7 +322,7 @@ namespace Avalonia.Controls
                     DataGrid owningGrid = OwningGrid;
                     DataGridSortDescription newSort;
 
-                    KeyboardHelper.GetMetaKeyState(this, keyModifiers, out bool ctrl, out bool shift, out bool alt);
+                    KeyboardHelper.GetMetaKeyState(this, keyModifiers, out bool ctrl, out bool shift);
 
                     DataGridSortDescription sort = OwningColumn.GetSortDescription();
                     IDataGridCollectionView collectionView = owningGrid.DataConnection.CollectionView;
@@ -331,7 +331,7 @@ namespace Avalonia.Controls
                     using (collectionView.DeferRefresh())
                     {
                         // if shift is held down, we multi-sort, therefore if it isn't, we'll clear the sorts beforehand
-                        if ((!shift && !alt) || owningGrid.DataConnection.SortDescriptions.Count == 0)
+                        if (!shift || owningGrid.DataConnection.SortDescriptions.Count == 0)
                         {
                             owningGrid.DataConnection.SortDescriptions.Clear();
 
@@ -346,86 +346,83 @@ namespace Avalonia.Controls
                         // if ctrl is held down, we only clear the sort directions
                         if (!ctrl)
                         {
-                            if (!alt)
+                            if (sort != null)
                             {
-                                if (sort != null)
+                                if (forcedDirection == null || sort.Direction != forcedDirection)
                                 {
-                                    if (forcedDirection == null || sort.Direction != forcedDirection)
-                                    {
-                                        newSort = sort.SwitchSortDirection();
-                                    }
-                                    else
-                                    {
-                                        newSort = sort;
-                                    }
-
-                                    // changing direction should not affect sort order, so we replace this column's
-                                    // sort description instead of just adding it to the end of the collection
-                                    int oldIndex = owningGrid.DataConnection.SortDescriptions.IndexOf(sort);
-                                    if (oldIndex >= 0)
-                                    {
-                                        owningGrid.DataConnection.SortDescriptions.Remove(sort);
-                                        owningGrid.DataConnection.SortDescriptions.Insert(oldIndex, newSort);
-                                    }
-                                    else
-                                    {
-                                        owningGrid.DataConnection.SortDescriptions.Add(newSort);
-                                    }
-                                }
-                                else if (OwningColumn.CustomSortComparer != null)
-                                {
-                                    newSort = forcedDirection != null ?
-                                        DataGridSortDescription.FromComparer(OwningColumn.CustomSortComparer, forcedDirection.Value) :
-                                        DataGridSortDescription.FromComparer(OwningColumn.CustomSortComparer);
-
-
-                                    owningGrid.DataConnection.SortDescriptions.Add(newSort);
+                                    newSort = sort.SwitchSortDirection();
                                 }
                                 else
                                 {
-                                    string propertyName = OwningColumn.GetSortPropertyName();
-                                    // no-opt if we couldn't find a property to sort on
-                                    if (string.IsNullOrEmpty(propertyName))
-                                    {
-                                        return;
-                                    }
+                                    newSort = sort;
+                                }
 
-                                    newSort = DataGridSortDescription.FromPath(propertyName, culture: collectionView.Culture);
-                                    if (forcedDirection != null && newSort.Direction != forcedDirection)
-                                    {
-                                        newSort = newSort.SwitchSortDirection();
-                                    }
-
+                                // changing direction should not affect sort order, so we replace this column's
+                                // sort description instead of just adding it to the end of the collection
+                                int oldIndex = owningGrid.DataConnection.SortDescriptions.IndexOf(sort);
+                                if (oldIndex >= 0)
+                                {
+                                    owningGrid.DataConnection.SortDescriptions.Remove(sort);
+                                    owningGrid.DataConnection.SortDescriptions.Insert(oldIndex, newSort);
+                                }
+                                else
+                                {
                                     owningGrid.DataConnection.SortDescriptions.Add(newSort);
                                 }
                             }
+                            else if (OwningColumn.CustomSortComparer != null)
+                            {
+                                newSort = forcedDirection != null ?
+                                    DataGridSortDescription.FromComparer(OwningColumn.CustomSortComparer, forcedDirection.Value) :
+                                    DataGridSortDescription.FromComparer(OwningColumn.CustomSortComparer);
+
+
+                                owningGrid.DataConnection.SortDescriptions.Add(newSort);
+                            }
                             else
                             {
-                                if (sort != null)
+                                string propertyName = OwningColumn.GetSortPropertyName();
+                                // no-opt if we couldn't find a property to sort on
+                                if (string.IsNullOrEmpty(propertyName))
                                 {
-                                    // which sort description is to remove?
-                                    var sortIndex = 0;
-                                    while (OwningGrid.DataConnection.SortDescriptions[sortIndex].PropertyPath != sort.PropertyPath && sortIndex < OwningGrid.DataConnection.SortDescriptions.Count)
+                                    return;
+                                }
+
+                                newSort = DataGridSortDescription.FromPath(propertyName, culture: collectionView.Culture);
+                                if (forcedDirection != null && newSort.Direction != forcedDirection)
+                                {
+                                    newSort = newSort.SwitchSortDirection();
+                                }
+
+                                owningGrid.DataConnection.SortDescriptions.Add(newSort);
+                            }
+                        }
+                        else if (shift)
+                        {
+                            if (sort != null)
+                            {
+                                // which sort description is to remove?
+                                var sortIndex = 0;
+                                while (OwningGrid.DataConnection.SortDescriptions[sortIndex].PropertyPath != sort.PropertyPath && sortIndex < OwningGrid.DataConnection.SortDescriptions.Count)
+                                {
+                                    sortIndex++;
+                                }
+
+                                // clear priority color and sort index
+                                OwningColumn.HeaderCell.SortIndex = null;
+                                OwningColumn.HeaderCell.SortPriorityBrush = null;
+
+                                owningGrid.DataConnection.SortDescriptions.RemoveAt(sortIndex);
+
+                                // Set new values based on new sort order
+                                for (int i = 0; i < owningGrid.DataConnection.SortDescriptions.Count; i++)
+                                {
+                                    var column = owningGrid.Columns.FirstOrDefault(x =>
+                                        x.SortMemberPath == owningGrid.DataConnection.SortDescriptions[i].PropertyPath);
+                                    if (column != null)
                                     {
-                                        sortIndex++;
-                                    }
-
-                                    // clear priority color and sort index
-                                    OwningColumn.HeaderCell.SortIndex = null;
-                                    OwningColumn.HeaderCell.SortPriorityBrush = null;
-
-                                    owningGrid.DataConnection.SortDescriptions.RemoveAt(sortIndex);
-
-                                    // Set new values based on new sort order
-                                    for (int i = 0; i < owningGrid.DataConnection.SortDescriptions.Count; i++)
-                                    {
-                                        var column = owningGrid.Columns.FirstOrDefault(x =>
-                                            x.SortMemberPath == owningGrid.DataConnection.SortDescriptions[i].PropertyPath);
-                                        if (column != null)
-                                        {
-                                            column.HeaderCell.SortIndex = i;
-                                            column.HeaderCell.SortPriorityBrush = column.HeaderCell.UpdateSortPriorityBrush();
-                                        }
+                                        column.HeaderCell.SortIndex = i;
+                                        column.HeaderCell.SortPriorityBrush = column.HeaderCell.UpdateSortPriorityBrush();
                                     }
                                 }
                             }
