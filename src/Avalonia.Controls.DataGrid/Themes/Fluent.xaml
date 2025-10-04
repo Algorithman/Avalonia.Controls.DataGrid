@@ -193,7 +193,9 @@
                           <ColumnDefinition Width="Auto"/>
                         </Grid.ColumnDefinitions>
                         <Border ></Border>
-                        <TextBlock Grid.Column="0" Text="{TemplateBinding SortIndex}" IsVisible="{Binding SortIndex, Converter={x:Static ObjectConverters.IsNotNull}}"
+                        <TextBlock Grid.Column="0" 
+                                   Text="{TemplateBinding SortIndex}" 
+                                   IsVisible="{TemplateBinding SortIndex, Converter={x:Static ObjectConverters.IsNotNull}}"
                                    Classes="SortIndexIndicator"
                                    FontSize="9"
                                    VerticalAlignment="Bottom"
