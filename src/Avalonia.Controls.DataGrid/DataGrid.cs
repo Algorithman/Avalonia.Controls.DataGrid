@@ -29,6 +29,7 @@ using Avalonia.Controls.Automation.Peers;
 using Avalonia.Controls.Utils;
 using Avalonia.Layout;
 using Avalonia.Controls.Metadata;
+using Avalonia.Controls.Settings;
 using Avalonia.Input.GestureRecognizers;
 using Avalonia.Styling;
 using Avalonia.Reactive;
@@ -166,6 +167,12 @@ namespace Avalonia.Controls
         /// </summary>
         public static readonly StyledProperty<bool> CanUserReorderColumnsProperty =
             AvaloniaProperty.Register<DataGrid, bool>(nameof(CanUserReorderColumns));
+
+        /// <summary>
+        /// Holder for the pseudo class rules
+        /// </summary>
+        public Dictionary<string, Func<object, bool>> RowPseudoClassRules { get; set; }
+
 
         /// <summary>
         /// Gets or sets a value that indicates whether the user can change
@@ -826,7 +833,23 @@ namespace Avalonia.Controls
 
             RowGroupHeaderHeightEstimate = DATAGRID_defaultRowHeight;
 
+            RowPseudoClassRules = new Dictionary<string, Func<object, bool>>();
+
+            LoadingRow += AddRulebasedPseudoClasses;
+
             UpdatePseudoClasses();
+        }
+
+        private void AddRulebasedPseudoClasses(object sender, DataGridRowEventArgs e)
+        {
+            if (e.Row != null)
+            {
+                foreach (var rule in RowPseudoClassRules)
+                {
+                    e.Row.Classes.Set($"{rule.Key}", rule.Value(e.Row.DataContext));
+                    e.Row.InvalidateVisual();
+                }
+            }
         }
 
         protected override AutomationPeer OnCreateAutomationPeer()
@@ -918,7 +941,7 @@ namespace Avalonia.Controls
                 }
                 else
                 {
-                    newCollectionView =  newItemsSource is not null
+                    newCollectionView = newItemsSource is not null
                         ? DataGridDataConnection.CreateView(newItemsSource)
                         : default;
                 }
@@ -927,8 +950,8 @@ namespace Avalonia.Controls
 
                 if (oldCollectionView != DataConnection.CollectionView)
                 {
-                    RaisePropertyChanged(CollectionViewProperty, 
-                        oldCollectionView, 
+                    RaisePropertyChanged(CollectionViewProperty,
+                        oldCollectionView,
                         newCollectionView);
                 }
 
@@ -2344,15 +2367,15 @@ namespace Avalonia.Controls
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
         {
             var delta = e.Delta;
-            
+
             // KeyModifiers.Shift should scroll in horizontal direction. This does not work on every platform. 
             // If Shift-Key is pressed and X is close to 0 we swap the Vector.
             if (e.KeyModifiers == KeyModifiers.Shift && MathUtilities.IsZero(delta.X))
             {
                 delta = new Vector(delta.Y, delta.X);
             }
-            
-            if(UpdateScroll(delta * DATAGRID_mouseWheelDelta))
+
+            if (UpdateScroll(delta * DATAGRID_mouseWheelDelta))
             {
                 e.Handled = true;
             }
@@ -2392,7 +2415,7 @@ namespace Avalonia.Controls
                 {
                     DisplayData.PendingVerticalScrollHeight = scrollHeight;
                     handled = true;
-                    
+
                     var eventType = scrollHeight > 0 ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
                     VerticalScroll?.Invoke(this, new ScrollEventArgs(eventType, scrollHeight));
                 }
@@ -2417,7 +2440,7 @@ namespace Avalonia.Controls
                         // We don't need to invalidate once again after UpdateHorizontalOffset.
                         ignoreInvalidate = true;
                         handled = true;
-                        
+
                         var eventType = horizontalOffset > 0 ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
                         HorizontalScroll?.Invoke(this, new ScrollEventArgs(eventType, horizontalOffset));
                     }
@@ -2559,6 +2582,7 @@ namespace Avalonia.Controls
                 _hScrollBar.Orientation = Orientation.Horizontal;
                 _hScrollBar.IsVisible = false;
                 _hScrollBar.Scroll += HorizontalScrollBar_Scroll;
+                _hScrollBar.AllowAutoHide = false;
             }
 
             if (_vScrollBar != null)
@@ -2575,6 +2599,7 @@ namespace Avalonia.Controls
                 _vScrollBar.Orientation = Orientation.Vertical;
                 _vScrollBar.IsVisible = false;
                 _vScrollBar.Scroll += VerticalScrollBar_Scroll;
+                _vScrollBar.AllowAutoHide = false;
             }
 
             _topLeftCornerHeader = e.NameScope.Find<ContentControl>(DATAGRID_elementTopLeftCornerHeaderName);
@@ -3378,7 +3403,7 @@ namespace Avalonia.Controls
             {
                 newCell.OwningColumn = column;
                 newCell.IsVisible = column.IsVisible;
-                if (row.OwningGrid.CellTheme is {} cellTheme)
+                if (row.OwningGrid.CellTheme is { } cellTheme)
                 {
                     newCell.SetValue(ThemeProperty, cellTheme, BindingPriority.Template);
                 }
@@ -5274,7 +5299,8 @@ namespace Avalonia.Controls
                 return false;
             }
 
-            if (WaitForLostFocus(delegate { ProcessRightKey(shift, ctrl); }))
+            if (WaitForLostFocus(delegate
+            { ProcessRightKey(shift, ctrl); }))
             {
                 return true;
             }
@@ -6279,6 +6305,61 @@ namespace Avalonia.Controls
         protected virtual void OnAutoGeneratingColumn(DataGridAutoGeneratingColumnEventArgs e)
         {
             AutoGeneratingColumn?.Invoke(this, e);
+        }
+        public DataGridSettings SaveSettings()
+        {
+            var settings = new DataGridSettings();
+
+            foreach (var col in Columns)
+            {
+                // Use Tag or Owning property to store actual property name
+                var prop = col.Tag as string ?? col.Header?.ToString() ?? "";
+
+                settings.Columns.Add(new ColumnSettings
+                {
+                    PropertyPath = prop,
+                    DisplayIndex = col.DisplayIndex,
+                    IsVisible = col.IsVisible,
+                    WidthValue = col.ActualWidth,
+                    WidthUnit = DataGridLengthUnitType.Pixel // assumes Width is DataGridLength
+                });
+            }
+
+            foreach (var s in DataConnection.SortDescriptions)
+            {
+                settings.SortDescriptions.Add(new SortSettings
+                {
+                    PropertyPath = s.PropertyPath,
+                    Direction = s.Direction
+                });
+            }
+
+            return settings;
+        }
+
+        public void LoadSettings(DataGridSettings settings)
+        {
+            if (settings == null)
+                return;
+
+            // Restore columns
+            foreach (var colSetting in settings.Columns)
+            {
+                var col = Columns.FirstOrDefault(c => (c.Tag as string ?? c.Header?.ToString()) == colSetting.PropertyPath);
+                if (col != null)
+                {
+                    col.DisplayIndex = colSetting.DisplayIndex;
+                    col.IsVisible = colSetting.IsVisible;
+                    col.Width = new DataGridLength(colSetting.WidthValue, colSetting.WidthUnit);
+                }
+            }
+
+            // Restore sorting
+            DataConnection.SortDescriptions.Clear();
+            foreach (var sort in settings.SortDescriptions)
+            {
+                DataConnection.SortDescriptions.Add(DataGridSortDescription.FromPath(sort.PropertyPath, sort.Direction));
+            }
         }
     }
 }
