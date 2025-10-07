@@ -1096,7 +1096,7 @@ namespace Avalonia.Controls
             {
                 var value = change.GetNewValue<bool>();
 
-                if (OwningGrid != null && Slot != -1)
+                if (OwningGrid != null && Slot != -1 && OwningGrid.DataConnection.Count > 0)
                 {
                     OwningGrid.SetRowSelection(Slot, value, false);
                 }

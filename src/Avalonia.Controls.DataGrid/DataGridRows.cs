@@ -431,6 +431,7 @@ namespace Avalonia.Controls
                     row.Measure(new Size(double.PositiveInfinity, double.PositiveInfinity));
                 }
                 UpdateDisplayedRows(DisplayData.FirstScrollingSlot, CellsEstimatedHeight);
+                _filterRow?.InvalidateArrange();
             }
 
             if (DisplayData.FirstScrollingSlot < slot && (DisplayData.LastScrollingSlot > slot || DisplayData.LastScrollingSlot == -1))

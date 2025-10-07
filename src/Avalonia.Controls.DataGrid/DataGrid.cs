@@ -895,7 +895,7 @@ namespace Avalonia.Controls
                 }
                 else
                 {
-                    newCollectionView =  newItemsSource is not null
+                    newCollectionView = newItemsSource is not null
                         ? DataGridDataConnection.CreateView(newItemsSource)
                         : default;
                 }
@@ -904,8 +904,8 @@ namespace Avalonia.Controls
 
                 if (oldCollectionView != DataConnection.CollectionView)
                 {
-                    RaisePropertyChanged(CollectionViewProperty, 
-                        oldCollectionView, 
+                    RaisePropertyChanged(CollectionViewProperty,
+                        oldCollectionView,
                         newCollectionView);
                 }
 
@@ -2321,15 +2321,15 @@ namespace Avalonia.Controls
         protected override void OnPointerWheelChanged(PointerWheelEventArgs e)
         {
             var delta = e.Delta;
-            
+
             // KeyModifiers.Shift should scroll in horizontal direction. This does not work on every platform. 
             // If Shift-Key is pressed and X is close to 0 we swap the Vector.
             if (e.KeyModifiers == KeyModifiers.Shift && MathUtilities.IsZero(delta.X))
             {
                 delta = new Vector(delta.Y, delta.X);
             }
-            
-            if(UpdateScroll(delta * DATAGRID_mouseWheelDelta))
+
+            if (UpdateScroll(delta * DATAGRID_mouseWheelDelta))
             {
                 e.Handled = true;
             }
@@ -2369,7 +2369,7 @@ namespace Avalonia.Controls
                 {
                     DisplayData.PendingVerticalScrollHeight = scrollHeight;
                     handled = true;
-                    
+
                     var eventType = scrollHeight > 0 ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
                     VerticalScroll?.Invoke(this, new ScrollEventArgs(eventType, scrollHeight));
                 }
@@ -2394,7 +2394,7 @@ namespace Avalonia.Controls
                         // We don't need to invalidate once again after UpdateHorizontalOffset.
                         ignoreInvalidate = true;
                         handled = true;
-                        
+
                         var eventType = horizontalOffset > 0 ? ScrollEventType.SmallIncrement : ScrollEventType.SmallDecrement;
                         HorizontalScroll?.Invoke(this, new ScrollEventArgs(eventType, horizontalOffset));
                     }
@@ -2484,6 +2484,45 @@ namespace Avalonia.Controls
             {
                 // If we're applying a new template, we want to remove the old column headers first
                 _columnHeadersPresenter.Children.Clear();
+            }
+
+            var rootGrid = e.NameScope.Find<Grid>("PART_DataGrid_RootGrid");
+            if (rootGrid == null)
+                Debug.WriteLine("FUCK");
+
+            if (IsFilterRowVisible && _filterRow == null && ItemsSource is DataGridCollectionView)
+            {
+                _filterRow = new DataGridFilterRow(this, Columns.ToArray())
+                {
+                    CollectionView = ItemsSource as DataGridCollectionView
+                };
+
+                Grid.SetRow(_filterRow, 1);
+                Grid.SetColumn(_filterRow, 1);
+                
+                rootGrid.Children.Add(_filterRow);
+
+                _filterRow.AttachColumnWidthSync();
+            }
+            if (_filterRow != null)
+            {
+                Columns.CollectionChanged += (s, ev) =>
+                {
+                    if (Columns.Count == 0)
+                    {
+                        return;
+                    }
+                    _filterRow.Columns = Columns.ToArray();
+                    Grid.SetColumnSpan(_filterRow, Columns.Count);
+                    _filterRow.TryBuildCells();
+                };
+
+                if (Columns.Count > 0)
+                {
+                    _filterRow.Columns = Columns.ToArray();
+                    Grid.SetColumnSpan(_filterRow, Columns.Count);
+                    _filterRow.TryBuildCells();
+                }
             }
 
             _columnHeadersPresenter = e.NameScope.Find<DataGridColumnHeadersPresenter>(DATAGRID_elementColumnHeadersPresenterName);
@@ -2775,6 +2814,7 @@ namespace Avalonia.Controls
                     _hScrollBar.Value = _horizontalOffset + scrollBarValueDifference;
                 }
                 UpdateHorizontalOffset(_hScrollBar.Value);
+                _filterRow?.InvalidateArrange();
             }
             finally
             {
@@ -3355,7 +3395,7 @@ namespace Avalonia.Controls
             {
                 newCell.OwningColumn = column;
                 newCell.IsVisible = column.IsVisible;
-                if (row.OwningGrid.CellTheme is {} cellTheme)
+                if (row.OwningGrid.CellTheme is { } cellTheme)
                 {
                     newCell.SetValue(ThemeProperty, cellTheme, BindingPriority.Template);
                 }
@@ -3765,6 +3805,8 @@ namespace Avalonia.Controls
             UpdateHorizontalScrollBar(needHorizScrollbar, forceHorizScrollbar, totalVisibleWidth, totalVisibleFrozenWidth, cellsWidth);
             UpdateVerticalScrollBar(needVertScrollbar, forceVertScrollbar, totalVisibleHeight, cellsHeight);
 
+            
+
             if (_topRightCornerHeader != null)
             {
                 // Show the TopRightHeaderCell based on vertical ScrollBar visibility
@@ -3828,6 +3870,7 @@ namespace Avalonia.Controls
             InvalidateColumnHeadersMeasure();
             InvalidateRowsMeasure(true);
             InvalidateMeasure();
+            _filterRow?.InvalidateMeasure();
         }
 
         private void EnsureRowHeaderWidth()
@@ -5251,7 +5294,8 @@ namespace Avalonia.Controls
                 return false;
             }
 
-            if (WaitForLostFocus(delegate { ProcessRightKey(shift, ctrl); }))
+            if (WaitForLostFocus(delegate
+            { ProcessRightKey(shift, ctrl); }))
             {
                 return true;
             }

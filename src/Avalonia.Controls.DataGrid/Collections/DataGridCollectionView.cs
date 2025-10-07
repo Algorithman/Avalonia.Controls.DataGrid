@@ -6,7 +6,6 @@
 #nullable disable
 
 using Avalonia.Controls.Utils;
-using Avalonia.Utilities;
 using System;
 using System.Collections;
 using System.Collections.Generic;
@@ -16,7 +15,6 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
-using System.Text;
 
 namespace Avalonia.Collections
 {
@@ -206,6 +204,11 @@ namespace Avalonia.Collections
         private IEnumerator _trackingEnumerator;
 
         /// <summary>
+        /// Private dictionary for advanced filtering data
+        /// </summary>
+        private readonly Dictionary<string, DataGridCollectionViewColumnFilter> _activeFilters = new(StringComparer.OrdinalIgnoreCase);
+
+        /// <summary>
         /// Helper constructor that sets default values for isDataSorted and isDataInGroupOrder.
         /// </summary>
         /// <param name="source">The source for the collection</param>
@@ -310,6 +313,16 @@ namespace Avalonia.Collections
             add { PropertyChanged += value; }
             remove { PropertyChanged -= value; }
         }
+
+        /// <summary>
+        /// Raised when a by-property filter is added/removed/changed
+        /// </summary>
+        public event EventHandler? FiltersChanged;
+
+        /// <summary>
+        /// Dictionary for by-property filtering values
+        /// </summary>
+        public IReadOnlyDictionary<string, DataGridCollectionViewColumnFilter> ActiveFilters => _activeFilters;
 
         /// <summary>
         /// Enum for CollectionViewFlags
@@ -646,6 +659,7 @@ namespace Avalonia.Collections
                 if (_filter != value)
                 {
                     _filter = value;
+                    OnFiltersChanged();
                     RefreshOrDefer();
                     OnPropertyChanged(nameof(Filter));
                 }
@@ -667,7 +681,7 @@ namespace Avalonia.Collections
         string IDataGridCollectionView.GetGroupingPropertyNameAtDepth(int level)
         {
             var groups = GroupDescriptions;
-            if(groups != null && level >= 0 && level < groups.Count)
+            if (groups != null && level >= 0 && level < groups.Count)
             {
                 return groups[level].PropertyName;
             }
@@ -1151,7 +1165,7 @@ namespace Avalonia.Collections
         //TODO Paging
         private bool UsesLocalArray
         {
-            get { return SortDescriptions.Count > 0 || Filter != null || _pageSize > 0 || GroupDescriptions.Count > 0; }
+            get { return SortDescriptions.Count > 0 || Filter != null || ActiveFilters.Count > 0 || _pageSize > 0 || GroupDescriptions.Count > 0; }
         }
 
         /// <summary>
@@ -2331,13 +2345,70 @@ namespace Avalonia.Collections
         /// <returns>Whether the item passes the filter</returns>
         public bool PassesFilter(object item)
         {
-            if (Filter != null)
+            var result = true;
+
+            if (_activeFilters.Count > 0)
             {
-                return Filter(item);
+                var map = GetPropertyMap(item.GetType());
+
+                foreach (var filter in _activeFilters.Values)
+                {
+                    if (!filter.IsActive)
+                        continue;
+
+                    if (!map.TryGetValue(filter.PropertyName, out var prop))
+                        continue;
+
+                    var value = prop.GetValue(item);
+                    if (!Evaluate(value, filter.Value, filter.Mode))
+                    {
+                        result = false;
+                        break;
+                    }
+                }
             }
 
+            if (result && Filter != null)
+            {
+                result = Filter(item);
+            }
+
+            return result;
+        }
+
+
+        private static bool Evaluate(object? itemValue, object? filterValue, FilterMode mode)
+        {
+            if (filterValue == null)
+                return true;
+
+            var str = itemValue?.ToString() ?? string.Empty;
+            var filter = filterValue.ToString() ?? string.Empty;
+
+            return mode switch
+            {
+                FilterMode.Equals => string.Equals(str, filter, StringComparison.OrdinalIgnoreCase),
+                FilterMode.StartsWith => str.StartsWith(filter, StringComparison.OrdinalIgnoreCase),
+                FilterMode.EndsWith => str.EndsWith(filter, StringComparison.OrdinalIgnoreCase),
+                FilterMode.Contains => str.IndexOf(filter, StringComparison.OrdinalIgnoreCase) >= 0,
+                FilterMode.GreaterThan => TryCompare(str, filter, out var gt) && gt > 0,
+                FilterMode.LessThan => TryCompare(str, filter, out var lt) && lt < 0,
+                _ => true
+            };
+        }
+
+        private static bool TryCompare(string a, string b, out int result)
+        {
+            if (double.TryParse(a, out var da) && double.TryParse(b, out var db))
+            {
+                result = da.CompareTo(db);
+                return true;
+            }
+
+            result = string.Compare(a, b, StringComparison.OrdinalIgnoreCase);
             return true;
         }
+
 
         /// <summary>
         /// Re-create the view, using any SortDescriptions and/or Filters.
@@ -3268,7 +3339,7 @@ namespace Avalonia.Collections
 
             foreach (object item in enumerable)
             {
-                if (Filter == null || PassesFilter(item))
+                if (PassesFilter(item))
                 {
                     localList.Add(item);
                 }
@@ -3442,9 +3513,9 @@ namespace Avalonia.Collections
                 RefreshOrDefer();
                 return;
             }
-            
+
             // fire notifications for removes
-            if (args.OldItems != null && 
+            if (args.OldItems != null &&
                 (args.Action == NotifyCollectionChangedAction.Remove ||
                 args.Action == NotifyCollectionChangedAction.Replace))
             {
@@ -3455,13 +3526,13 @@ namespace Avalonia.Collections
             }
 
             // fire notifications for adds
-            if (args.NewItems != null && 
+            if (args.NewItems != null &&
                 (args.Action == NotifyCollectionChangedAction.Add ||
                  args.Action == NotifyCollectionChangedAction.Replace))
             {
                 for (var i = 0; i < args.NewItems.Count; i++)
                 {
-                    if (Filter == null || PassesFilter(args.NewItems[i]))
+                    if (PassesFilter(args.NewItems[i]))
                     {
                         ProcessAddEvent(args.NewItems[i], args.NewStartingIndex + i);
                     }
@@ -3576,7 +3647,7 @@ namespace Avalonia.Collections
         private void ProcessInsertToCollection(object item, int index)
         {
             // first check to see if it passes the filter
-            if (Filter == null || PassesFilter(item))
+            if (PassesFilter(item))
             {
                 if (SortDescriptions.Count > 0)
                 {
@@ -3981,7 +4052,7 @@ namespace Avalonia.Collections
 
             foreach (DataGridSortDescription sort in SortDescriptions)
             {
-                sort.Initialize(itemType); 
+                sort.Initialize(itemType);
 
                 if (seq is IOrderedEnumerable<object> orderedEnum)
                 {
@@ -4031,7 +4102,7 @@ namespace Avalonia.Collections
             }
         }
 
-        void IList.Insert(int index, object value) 
+        void IList.Insert(int index, object value)
         {
             SourceList.Insert(index, value);
             if (SourceList is not INotifyCollectionChanged)
@@ -4317,7 +4388,7 @@ namespace Avalonia.Collections
 
             private static IComparer<object>[] MakeComparerArray(DataGridSortDescriptionCollection coll)
             {
-                return 
+                return
                     coll.Select(c => c.Comparer)
                         .ToArray();
             }
@@ -4386,6 +4457,60 @@ namespace Avalonia.Collections
 
                 return min;
             }
-        }       
+        }
+
+
+        // Caching the property data of the dataset types
+        private static readonly Dictionary<Type, Dictionary<string, PropertyInfo>> _propertyCache = new();
+
+        private Dictionary<string, PropertyInfo> GetPropertyMap(Type itemType)
+        {
+            if (!_propertyCache.TryGetValue(itemType, out var map))
+            {
+                map = itemType
+                    .GetProperties(BindingFlags.Instance | BindingFlags.Public)
+                    .ToDictionary(p => p.Name, p => p, StringComparer.OrdinalIgnoreCase);
+                _propertyCache[itemType] = map;
+            }
+            return map;
+        }
+
+        
+        public void SetFilter(string propertyName, object? value, FilterMode mode = FilterMode.Contains)
+        {
+            if (string.IsNullOrWhiteSpace(propertyName))
+                return;
+
+            if (!_activeFilters.TryGetValue(propertyName, out var f))
+                _activeFilters[propertyName] = f = new DataGridCollectionViewColumnFilter { PropertyName = propertyName };
+
+            f.Value = value;
+            f.Mode = mode;
+
+            RefreshFilter();
+        }
+
+        public void ClearFilter(string propertyName)
+        {
+            if (_activeFilters.Remove(propertyName))
+                RefreshFilter();
+        }
+
+        public void ClearAllFilters()
+        {
+            if (_activeFilters.Count > 0)
+            {
+                _activeFilters.Clear();
+                RefreshFilter();
+            }
+        }
+
+        private void RefreshFilter()
+        {
+            RefreshOrDefer();
+            OnFiltersChanged();
+        }
+
+        private void OnFiltersChanged() => FiltersChanged?.Invoke(this, EventArgs.Empty);
     }
 }
