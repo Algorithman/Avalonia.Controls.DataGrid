@@ -133,6 +133,7 @@ namespace Avalonia.Controls
             set => SetValue(ForegroundProperty, value);
         }
 
+        /// <inheritdoc />
         protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
         {
             base.OnPropertyChanged(change);
@@ -244,7 +245,7 @@ namespace Avalonia.Controls
         /// Called by the DataGrid control when this column asks for its elements to be
         /// updated, because a property changed.
         /// </summary>
-        protected internal override void RefreshCellContent(Control element, string propertyName)
+        protected internal override void RefreshCellContentInternal(Control element, string propertyName)
         {
             if (element == null)
             {

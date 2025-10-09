@@ -797,8 +797,22 @@ namespace Avalonia.Controls
         /// </summary>
         /// <param name="element">Indicates the element that needs to be refreshed</param>
         /// <param name="propertyName">Indicates which property changed and caused this call</param>
-        protected internal virtual void RefreshCellContent(Control element, string propertyName)
+        protected internal virtual void RefreshCellContentInternal(Control element, string propertyName)
         { }
+
+        /// <summary>
+        /// Called by the DataGrid control when a column asked for its
+        /// elements to be refreshed, typically because one of its properties changed.
+        /// </summary>
+        /// <param name="element">Indicates the element that needs to be refreshed</param>
+        /// <param name="propertyName">Indicates which property changed and caused this call</param>
+        /// <returns>
+        /// Returns true if the value was applied
+        /// </returns>
+        public virtual bool RefreshCellContent(Control element, string propertyName)
+        {
+            return false;
+        }
 
         /// <summary>
         /// When overridden in a derived class, called when a cell in the column exits editing mode.

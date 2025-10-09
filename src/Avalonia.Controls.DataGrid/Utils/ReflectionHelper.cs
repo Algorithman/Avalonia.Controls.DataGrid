@@ -11,6 +11,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Diagnostics;
 using System.Globalization;
 using System.Reflection;
+using Avalonia.Collections;
 
 namespace Avalonia.Controls.Utils
 {
@@ -568,6 +569,12 @@ namespace Avalonia.Controls.Utils
             if (listType.IsEnumerableType())
             {
                 itemType = listType.GetEnumerableItemType();
+            }
+
+            // if the provided list is a DataGridCollectionView, return the type of its SourceCollection
+            if (list is DataGridCollectionView sgv)
+            {
+                return sgv.SourceCollection.GetItemType();
             }
 
             // Bare IEnumerables mean that result type will be object.  In that case, we try to get something more interesting

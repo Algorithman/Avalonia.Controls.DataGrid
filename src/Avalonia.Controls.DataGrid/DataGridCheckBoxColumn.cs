@@ -223,7 +223,7 @@ namespace Avalonia.Controls
         /// Called by the DataGrid control when this column asks for its elements to be
         /// updated, because its CheckBoxContent or IsThreeState property changed.
         /// </summary>
-        protected internal override void RefreshCellContent(Control element, string propertyName)
+        protected internal override void RefreshCellContentInternal(Control element, string propertyName)
         {
             if (element == null)
             {
