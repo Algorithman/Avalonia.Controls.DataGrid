@@ -572,7 +572,7 @@ namespace Avalonia.Controls.Utils
             }
 
             // if the provided list is a DataGridCollectionView, return the type of its SourceCollection
-            if (list is DataGridCollectionView sgv)
+            if (itemType == null && list is DataGridCollectionView sgv)
             {
                 return sgv.SourceCollection.GetItemType();
             }
